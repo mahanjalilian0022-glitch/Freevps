@@ -1,0 +1,56 @@
+name: Deploy Outline VPN Server on Ubuntu
+
+on:
+  # اجازه اجرای دستی از تب Actions
+  workflow_dispatch:
+    inputs:
+      server_name:
+        description: 'نام دلخواه برای سرور'
+        required: false
+        default: 'My-Outline-VPN'
+
+jobs:
+  deploy-outline:
+    # استفاده از آخرین نسخه Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Outline Server via Official Script
+        id: install_outline
+        run: |
+          # دانلود و اجرای اسکریپت رسمی نصب Outline
+          # این اسکریپت به صورت خودکار پورت‌ها را باز کرده و سرور را راه‌اندازی می‌کند
+          sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/OutlineFoundation/outline-apps/master/server_manager/install_scripts/install_server.sh)" > /tmp/outline_install.log 2>&1
+          
+          # نمایش لاگ‌ها برای دیباگ
+          cat /tmp/outline_install.log
+          
+          # استخراج اطلاعات JSON (API URL و Cert SHA256) از لاگ
+          # اسکریپت نصب این اطلاعات را در خروجی چاپ می‌کند
+          echo "--- Extracting Outline Configuration ---"
+          grep -o '{"apiUrl":.*}' /tmp/outline_install.log > /tmp/outline_config.json
+          
+          if [ -s /tmp/outline_config.json ]; then
+            echo "OUTLINE_JSON=$(cat /tmp/outline_config.json)" >> $GITHUB_ENV
+            echo "✅ Outline server installed successfully."
+          else
+            echo "❌ Failed to extract Outline configuration from install logs."
+            exit 1
+          fi
+
+      - name: Show Connection Info
+        run: |
+          echo "### 🌐 Outline Server Ready" >> $GITHUB_STEP_SUMMARY
+          echo "این JSON را کپی کرده و در Outline Manager وارد کنید:" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.OUTLINE_JSON }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          # نمایش در لاگ Actions
+          echo "----------------------------------------"
+          echo "کد اتصال (JSON):"
+          echo "${{ env.OUTLINE_JSON }}"
+          echo "----------------------------------------"
