@@ -1,0 +1,68 @@
+name: Free VPS
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'  # هر ۶ ساعت یک‌بار اجرا می‌شود
+
+jobs:
+  vps-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350  # کمی کمتر از ۶ ساعت برای جلوگیری از تایم‌اوت
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set hostname
+        run: sudo hostnamectl set-hostname free-vps
+
+      - name: Download backup (if any)
+        uses: actions/download-artifact@v4
+        with:
+          name: vps-backup
+          path: ./backup
+        continue-on-error: true
+
+      - name: Install prerequisites
+        run: |
+          sudo apt update
+          sudo apt install -y tmate curl unzip sudo net-tools neofetch
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Restore backup
+        run: |
+          if [ -f ./backup/backup.zip ]; then
+            unzip -o ./backup/backup.zip -d /
+          else
+            echo "No backup found, starting fresh"
+          fi
+
+      - name: Restore Tailscale state
+        run: |
+          if [ -f /opt/vps-backup/data/tailscaled.state ]; then
+            sudo mkdir -p /var/lib/tailscale
+            sudo cp /opt/vps-backup/data/tailscaled.state /var/lib/tailscale/tailscaled.state
+            sudo chmod 600 /var/lib/tailscale/tailscaled.state
+          fi
+
+      - name: Start Tailscale
+        run: |
+          sudo tailscaled &
+          sleep 5
+          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname free-vps --ssh
+
+      - name: Show Tailscale IP
+        run: |
+          tailscale ip -4
+          echo "Use this IP to SSH into the server"
+          tailscale status
+
+      - name: Keep session alive
+        run: |
+          echo "VPS is running. Connect via Tailscale IP."
+          echo "Session will end after 6 hours."
+          sleep 21000  # کمی کمتر از ۶ ساعت (350 دقیقه)
