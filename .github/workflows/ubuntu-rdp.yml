@@ -1,0 +1,49 @@
+name: Ubuntu RDP via Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+
+      - name: Setup Ubuntu Desktop & XRDP
+        run: |
+          # به‌روزرسانی سیستم
+          sudo apt-get update -y
+          
+          # نصب دسکتاپ سبک و XRDP (برای RDP در لینوکس)
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies xrdp dbus-x11
+          
+          # تنظیم XFCE به عنوان دسکتاپ پیش‌فرض برای کاربر runner
+          echo "xfce4-session" > ~/.xsession
+          
+          # تنظیم رمز عبور برای کاربر runner (نام کاربری همون runner هست)
+          echo "runner:YourStrongPassword123" | sudo chpasswd
+          
+          # اضافه کردن کاربر runner به گروه ssl-cert (برای دسترسی به XRDP)
+          sudo adduser runner ssl-cert
+          
+          # ری‌استارت XRDP
+          sudo systemctl restart xrdp
+
+      - name: Display Connection Info
+        run: |
+          echo "=============== RDP IS READY ==============="
+          echo "IP Address: $(tailscale ip -4)"
+          echo "Username: runner"
+          echo "Password: YourStrongPassword123"
+          echo "==========================================="
+          
+      - name: Keep Alive
+        run: sleep 21600
